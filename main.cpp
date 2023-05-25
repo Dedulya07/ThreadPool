@@ -15,17 +15,16 @@ struct TestTask : public MT::Task {
 	}
 };
 
-
 int main() {
 
 	MT::task_id signal;
 	MT::ThreadPool thread_pool(3);
 	thread_pool.set_logger_flag(true);
-	thread_pool.start();
+
 	for (int i = 0; i < 20; i++) {
 		thread_pool.add_task(TestTask("TestTask_" + std::to_string(i + 1), i));
 	}
-	std::this_thread::sleep_for(std::chrono::seconds(5));
+
 	signal = thread_pool.wait_signal();
 	if (signal != 0) {
 		auto result = thread_pool.get_result<TestTask>(signal);
