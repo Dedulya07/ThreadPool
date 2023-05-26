@@ -35,7 +35,7 @@ namespace MT {
 		Task(const std::string& _description);
 
 		// метод для подачи сигнала пулу из текущей задачи
-		void signal_thread_pool();
+		void send_signal();
 
 		// абстрактный метод, который должен быть реализован пользователем,
 		// в теле этой функции должен находиться тракт решения текущей задачи
@@ -43,7 +43,9 @@ namespace MT {
 
 	protected:
 		MT::Task::TaskStatus status;
+		// текстовое описание задачи (нужно для красивого логирования)
 		std::string description;
+		// уникальный идентификатор задачи
 		MT::task_id id;
 
 		MT::ThreadPool* thread_pool;
@@ -52,7 +54,8 @@ namespace MT {
 		void one_thread_pre_method();
 	};
 
-	// простая обертка над std::thread для того, что бы отслеживать состояние каждого потока
+	// простая обертка над std::thread для того, что бы отслеживать
+	// состояние каждого потока
 	struct Thread {
 		std::thread _thread;
 		std::atomic<bool> is_working;
@@ -60,23 +63,27 @@ namespace MT {
 
 	class ThreadPool {
 
-		friend void MT::Task::signal_thread_pool();
+		friend void MT::Task::send_signal();
 
 	public:
 		ThreadPool(int count_of_threads);
 
+		// шаблонная функция добавления задачи в очередь
 		template <typename TaskChild>
 		MT::task_id add_task(const TaskChild& task) {
 			std::lock_guard<std::mutex> lock(task_queue_mutex);
 			task_queue.push(std::make_shared<TaskChild>(task));
+			// присваиваем уникальный id новой задаче
+			// минимальное значение id равно 1
 			task_queue.back()->id = ++last_task_id;
+			// связываем задачу с текущим пулом
 			task_queue.back()->thread_pool = this;
 			tasks_access.notify_one();
 			return last_task_id;
 		}
 
 		// ожидание полной обработки текущей очереди задач или приостановки,
-		// возвращает id задачи, которая первая подавала сигнал и 0 иначе
+		// возвращает id задачи, которая первая подала сигнал и 0 иначе
 		MT::task_id wait_signal();
 
 		// ожидание полной обработки текущей очереди задач, игнорируя любые
@@ -90,11 +97,11 @@ namespace MT {
 		void start();
 
 		// получение результата по id
-		template <typename ResultType>
-		std::shared_ptr<ResultType> get_result(MT::task_id id) {
+		template <typename TaskChild>
+		std::shared_ptr<TaskChild> get_result(MT::task_id id) {
 			auto elem = completed_tasks.find(id);
 			if (elem != completed_tasks.end())
-				return std::reinterpret_pointer_cast<ResultType>(elem->second);
+				return std::reinterpret_pointer_cast<TaskChild>(elem->second);
 			else
 				return nullptr;
 		}
@@ -108,15 +115,15 @@ namespace MT {
 		~ThreadPool();
 
 	private:
-		// mutex'ы, блокирующие очереди для потокобезопасного изменения
+		// мьютексы, блокирующие очереди для потокобезопасного обращения
 		std::mutex task_queue_mutex;
 		std::mutex completed_tasks_mutex;
 		std::mutex signal_queue_mutex;
 
-		// mutex, блокирующий логер для последовательного вывода
+		// мьютекс, блокирующий логер для последовательного вывода
 		std::mutex logger_mutex;
 
-		// mutex, блокирующий функции ожидающие результаты (методы wait*)
+		// мьютекс, блокирующий функции ожидающие результаты (методы wait*)
 		std::mutex wait_mutex;
 
 		std::condition_variable tasks_access;
@@ -129,7 +136,7 @@ namespace MT {
 		std::queue<std::shared_ptr<Task>> task_queue;
 		MT::task_id last_task_id;
 
-		// массив выполненных задач
+		// массив выполненных задач в виде хэш-таблицы
 		std::unordered_map<MT::task_id, std::shared_ptr<Task>> completed_tasks;
 		unsigned long long completed_task_count;
 
@@ -149,7 +156,7 @@ namespace MT {
 		void run(MT::Thread* thread);
 
 		// приостановка обработки c выбросом сигнала
-		void stop(MT::task_id id);
+		void receive_signal(MT::task_id id);
 
 		// разрешение запуска очередного потока
 		bool run_allowed() const;

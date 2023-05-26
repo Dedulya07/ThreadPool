@@ -7,8 +7,8 @@ MT::Task::Task(const std::string& _description) {
 	thread_pool = nullptr;
 }
 
-void MT::Task::signal_thread_pool() {
-	thread_pool->stop(id);
+void MT::Task::send_signal() {
+	thread_pool->receive_signal(id);
 }
 
 void MT::Task::one_thread_pre_method() {
@@ -51,7 +51,7 @@ MT::ThreadPool::ThreadPool(int count_of_threads) {
 	logger_flag = false;
 	last_task_id = 0;
 	completed_task_count = 0;
-	ignore_signals = false;
+	ignore_signals = true;
 	for (int i = 0; i < count_of_threads; i++) {
 		MT::Thread* th = new MT::Thread;
 		th->_thread = std::thread{ &ThreadPool::run, this, th };
@@ -73,7 +73,8 @@ void MT::ThreadPool::run(MT::Thread* _thread) {
 	while (!stopped) {
 		std::unique_lock<std::mutex> lock(task_queue_mutex);
 
-		// текущий поток находится в режиме ожидания в случае, если нет заданий либо работа всего пула приостановлена
+		// текущий поток находится в режиме ожидания в случае,
+		// если нет заданий либо работа всего пула приостановлена
 		_thread->is_working = false;
 		tasks_access.wait(lock, [this]()->bool { return run_allowed() || stopped; });
 		_thread->is_working = true;
@@ -106,24 +107,25 @@ void MT::ThreadPool::run(MT::Thread* _thread) {
 }
 
 bool MT::ThreadPool::run_allowed() const {
-	return (!task_queue.empty() && (!paused || ignore_signals));
+	return (!task_queue.empty() && !paused);
 }
 
 void MT::ThreadPool::stop() {
-	if (!ignore_signals && !paused)
-		paused = true;
+	paused = true;
 }
 
-void MT::ThreadPool::stop(MT::task_id id) {
+void MT::ThreadPool::receive_signal(MT::task_id id) {
 	std::lock_guard<std::mutex> lock(signal_queue_mutex);
 	signal_queue.emplace(id);
-	stop();
+	if (!ignore_signals)
+		stop();
 }
 
 void MT::ThreadPool::start() {
 	if (paused) {
 		paused = false;
-		// даем всем потокам доступ к очереди невыполненных задач
+		// даем всем потокам разрешающий сигнал для доступа
+		// к очереди невыполненных задач
 		tasks_access.notify_all();
 	}
 }
@@ -131,14 +133,11 @@ void MT::ThreadPool::start() {
 void MT::ThreadPool::wait() {
 	std::lock_guard<std::mutex> lock_wait(wait_mutex);
 
-	ignore_signals = true;
-
 	start();
 
 	std::unique_lock<std::mutex> lock(task_queue_mutex);
 	wait_access.wait(lock, [this]()->bool { return is_comleted(); });
 
-	ignore_signals = false;
 	stop();
 }
 
@@ -157,7 +156,10 @@ MT::task_id MT::ThreadPool::wait_signal() {
 	std::unique_lock<std::mutex> lock(task_queue_mutex);
 	wait_access.wait(lock, [this]()->bool { return is_comleted() || is_standby(); });
 
-	// на данный момент все задачи по id из очереди signal_queue считаются выполнеными
+	ignore_signals = true;
+
+	// на данный момент все задачи по id из
+	// очереди signal_queue считаются выполненными
 	std::lock_guard<std::mutex> lock_signals(signal_queue_mutex);
 	if (signal_queue.empty())
 		return 0;
