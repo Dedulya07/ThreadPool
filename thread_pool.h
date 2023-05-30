@@ -7,23 +7,20 @@
 #include <iostream>
 #include <string>
 #include <queue>
+#include <unordered_map>
 
-// работа с потоками
+// work with threads
 #include <mutex>
 #include <thread>
 #include <condition_variable>
 #include <atomic>
-
-#include <functional>
-#include <cassert>
-#include <any>
 
 #include "timer.h"
 
 namespace MT {
 	typedef unsigned long long int task_id;
 
-	// абстрактный класс задачи
+	// abstract task class
 	class Task {
 		friend class ThreadPool;
 	public:
@@ -34,28 +31,28 @@ namespace MT {
 
 		Task(const std::string& _description);
 
-		// метод для подачи сигнала пулу из текущей задачи
+		// method for signaling the pool from the current task
 		void send_signal();
 
-		// абстрактный метод, который должен быть реализован пользователем,
-		// в теле этой функции должен находиться тракт решения текущей задачи
+		// abstract method that must be implemented by the user,
+		// the body of this function must contain the path for solving the current task
 		void virtual one_thread_method() = 0;
 
 	protected:
 		MT::Task::TaskStatus status;
-		// текстовое описание задачи (нужно для красивого логирования)
+		// text description of the task (needed for beautiful logging)
 		std::string description;
-		// уникальный идентификатор задачи
+		// unique task ID
 		MT::task_id id;
 
 		MT::ThreadPool* thread_pool;
 
-		// метод, запускаемый потоком
+		// thread-running method
 		void one_thread_pre_method();
 	};
 
-	// простая обертка над std::thread для того, что бы отслеживать
-	// состояние каждого потока
+	// simple wrapper over std::thread for keeping track
+	// state of each thread
 	struct Thread {
 		std::thread _thread;
 		std::atomic<bool> is_working;
@@ -68,35 +65,35 @@ namespace MT {
 	public:
 		ThreadPool(int count_of_threads);
 
-		// шаблонная функция добавления задачи в очередь
+		// template function for adding a task to the queue
 		template <typename TaskChild>
 		MT::task_id add_task(const TaskChild& task) {
 			std::lock_guard<std::mutex> lock(task_queue_mutex);
 			task_queue.push(std::make_shared<TaskChild>(task));
-			// присваиваем уникальный id новой задаче
-			// минимальное значение id равно 1
+			// assign a unique id to a new task
+			// the minimum value of id is 1
 			task_queue.back()->id = ++last_task_id;
-			// связываем задачу с текущим пулом
+			// associate a task with the current pool
 			task_queue.back()->thread_pool = this;
 			tasks_access.notify_one();
 			return last_task_id;
 		}
 
-		// ожидание полной обработки текущей очереди задач или приостановки,
-		// возвращает id задачи, которая первая подала сигнал и 0 иначе
+		// waiting for the current task queue to be completely processed or suspended,
+		// returns the id of the task that first signaled and 0 otherwise
 		MT::task_id wait_signal();
 
-		// ожидание полной обработки текущей очереди задач, игнорируя любые
-		// сигналы о приостановке
+		// wait for the current task queue to be fully processed,
+		// ignoring any pause signals
 		void wait();
 
-		// приостановка обработки
+		// pause processing
 		void stop();
 
-		// возобновление обработки
+		// resumption of processing
 		void start();
 
-		// получение результата по id
+		// get result by id
 		template <typename TaskChild>
 		std::shared_ptr<TaskChild> get_result(MT::task_id id) {
 			auto elem = completed_tasks.find(id);
@@ -106,65 +103,65 @@ namespace MT {
 				return nullptr;
 		}
 
-		// очистка завершенных задач
+		// cleaning completed tasks
 		void clear_completed();
 
-		// установка флага логирования
+		// setting the logging flag
 		void set_logger_flag(bool flag);
 
 		~ThreadPool();
 
 	private:
-		// мьютексы, блокирующие очереди для потокобезопасного обращения
+		// mutexes blocking queues for thread-safe access
 		std::mutex task_queue_mutex;
 		std::mutex completed_tasks_mutex;
 		std::mutex signal_queue_mutex;
 
-		// мьютекс, блокирующий логер для последовательного вывода
+		// mutex blocking serial output logger
 		std::mutex logger_mutex;
 
-		// мьютекс, блокирующий функции ожидающие результаты (методы wait*)
+		// mutex blocking functions waiting for results (wait* methods)
 		std::mutex wait_mutex;
 
 		std::condition_variable tasks_access;
 		std::condition_variable wait_access;
 
-		// набор доступных потоков
+		// set of available threads
 		std::vector<MT::Thread*> threads;
 
-		// очередь задач
+		// task queue
 		std::queue<std::shared_ptr<Task>> task_queue;
 		MT::task_id last_task_id;
 
-		// массив выполненных задач в виде хэш-таблицы
+		// array of completed tasks in the form of a hash table
 		std::unordered_map<MT::task_id, std::shared_ptr<Task>> completed_tasks;
 		unsigned long long completed_task_count;
 
 		std::queue<task_id> signal_queue;
 
-		// флаг остановки работы пула
+		// pool stop flag
 		std::atomic<bool> stopped;
-		// флаг приостановки работы
+		// pause flag
 		std::atomic<bool> paused;
 		std::atomic<bool> ignore_signals;
-		// флаг, разрешающий логирования
+		// flag to enable logging
 		std::atomic<bool> logger_flag;
 
 		Timer timer;
 
-		// основная функция, инициализирующая каждый поток
+		// main function that initializes each thread
 		void run(MT::Thread* thread);
 
-		// приостановка обработки c выбросом сигнала
+		// pause processing with signal emission
 		void receive_signal(MT::task_id id);
 
-		// разрешение запуска очередного потока
+		// permission to start the next thread
 		bool run_allowed() const;
 
-		// проверка выполнения всех задач из очереди
+		// checking the execution of all tasks from the queue
 		bool is_comleted() const;
 
-		// проверка, занятости хотя бы одного потока
+		// checking if at least one thread is busy
 		bool is_standby() const;
 	};
 
