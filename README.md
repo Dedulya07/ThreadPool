@@ -74,34 +74,34 @@
 
 Для работы с потоками нам пригодится класс `std::thread`, определенный в заголовочном файле `<thread>`.
 
-```
+```C++
 #include <iostream>
 #include <thread>
 #include <chrono>
 
 void sleep(int duration) {
-	// simulate expensive operation
-	std::this_thread::sleep_for(std::chrono::seconds(duration));
+    // simulate expensive operation
+    std::this_thread::sleep_for(std::chrono::seconds(duration));
 }
 
 int main() {
-	std::cout << "starting first thread...\n";
-	std::thread th1(sleep, 1);
+    std::cout << "starting first thread...\n";
+    std::thread th1(sleep, 1);
 
-	std::cout << "starting second thread...\n";
-	std::thread th2(sleep, 2);
+    std::cout << "starting second thread...\n";
+    std::thread th2(sleep, 2);
 
-	std::cout << "waiting for threads to finish...\n";
+    std::cout << "waiting for threads to finish...\n";
 
-	th1.join();
-	std::cout << "the first thread finished\n";
+    th1.join();
+    std::cout << "the first thread finished\n";
 
-	th2.join();
-	std::cout << "the second thread finished\n";
+    th2.join();
+    std::cout << "the second thread finished\n";
 
-	std::cout << "done\n";
+    std::cout << "done\n";
 
-	return 0;
+    return 0;
 }
 ```
 
@@ -111,29 +111,29 @@ int main() {
 
 Итак, запускать простейшие потоки мы научились. А что если два различных потока будут использовать общий ресурс?
 
-```
+```C++
 #include <iostream>
 #include <thread>
 #include <chrono>
 
 void func(int a) {
-	for (int i = 0; i < 3; i++) {
-		std::cout << a + i;
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-		std::cout << " ";
-	}
-	std::cout << "\n";
+    for (int i = 0; i < 3; i++) {
+        std::cout << a + i;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << " ";
+    }
+    std::cout << "\n";
 }
 
 int main() {
 
-	std::thread th1(func, 1);
-	std::thread th2(func, 4);
+    std::thread th1(func, 1);
+    std::thread th2(func, 4);
 
-	th1.join();
-	th2.join();
+    th1.join();
+    th2.join();
 
-	return 0;
+    return 0;
 }
 ```
 
@@ -143,7 +143,7 @@ int main() {
 
 Попробуем "починить" предыдущий пример при помощи внедрения общего для потоков мьютекса `std::mutex mtx`.
 
-```
+```C++
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -152,25 +152,25 @@ int main() {
 std::mutex mtx;
 
 void func(int a) {
-	mtx.lock();
-	for (int i = 0; i < 3; i++) {
-		std::cout << a + i;
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-		std::cout << " ";
-	}
-	std::cout << "\n";
-	mtx.unlock();
+    mtx.lock();
+    for (int i = 0; i < 3; i++) {
+        std::cout << a + i;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << " ";
+    }
+    std::cout << "\n";
+    mtx.unlock();
 }
 
 int main() {
 
-	std::thread th1(func, 1);
-	std::thread th2(func, 4);
+    std::thread th1(func, 1);
+    std::thread th2(func, 4);
 
-	th1.join();
-	th2.join();
+    th1.join();
+    th2.join();
 
-	return 0;
+    return 0;
 }
 ```
 
@@ -202,40 +202,40 @@ int main() {
 
 Любую задачу, поступающую на обработку Thread Pool'ом я предлагаю объявлять наследником абстрактного класса Task:
 
-```
+```C++
 namespace MT {
-	typedef unsigned long long int task_id;
+    typedef unsigned long long int task_id;
 
-	// абстрактный класс задачи
-	class Task {
-		friend class ThreadPool;
-	public:
-		enum class TaskStatus {
-			awaiting,
-			completed
-		};
+    // абстрактный класс задачи
+    class Task {
+        friend class ThreadPool;
+    public:
+        enum class TaskStatus {
+            awaiting,
+            completed
+        };
 
-		Task(const std::string& _description);
+        Task(const std::string& _description);
 
-		// метод для подачи сигнала пулу из текущей задачи
-		void send_signal();
+        // метод для подачи сигнала пулу из текущей задачи
+        void send_signal();
 
-		// абстрактный метод, который должен быть реализован пользователем,
-		// в теле этой функции должен находиться тракт решения текущей задачи
-		void virtual one_thread_method() = 0;
+        // абстрактный метод, который должен быть реализован пользователем,
+        // в теле этой функции должен находиться тракт решения текущей задачи
+        void virtual one_thread_method() = 0;
 
-	protected:
-		MT::Task::TaskStatus status;
-		// текстовое описание задачи (нужно для красивого логирования)
-		std::string description;
-		// уникальный идентификатор задачи
-		MT::task_id id;
+    protected:
+        MT::Task::TaskStatus status;
+        // текстовое описание задачи (нужно для красивого логирования)
+        std::string description;
+        // уникальный идентификатор задачи
+        MT::task_id id;
 
-		MT::ThreadPool* thread_pool;
+        MT::ThreadPool* thread_pool;
 
-		// метод, запускаемый потоком
-		void one_thread_pre_method();
-	};
+        // метод, запускаемый потоком
+        void one_thread_pre_method();
+    };
 }
 ```
 
@@ -254,105 +254,105 @@ namespace MT {
 
 Класс `ThreadPool` реализует непосредственно пул потоков:
 
-```
+```C++
 namespace MT {
     // простая обертка над std::thread для того, что бы отслеживать
-	// состояние каждого потока
-	struct Thread {
-		std::thread _thread;
-		std::atomic<bool> is_working;
-	};
+    // состояние каждого потока
+    struct Thread {
+        std::thread _thread;
+        std::atomic<bool> is_working;
+    };
 
-	class ThreadPool {
+    class ThreadPool {
 
-		friend void MT::Task::send_signal();
+        friend void MT::Task::send_signal();
 
-	public:
-		ThreadPool(int count_of_threads);
+    public:
+        ThreadPool(int count_of_threads);
 
-		// шаблонная функция добавления задачи в очередь
-		template <typename TaskChild>
-		MT::task_id add_task(const TaskChild& task);
+        // шаблонная функция добавления задачи в очередь
+        template <typename TaskChild>
+        MT::task_id add_task(const TaskChild& task);
 
-		// ожидание полной обработки текущей очереди задач или приостановки,
-		// возвращает id задачи, которая первая подала сигнал и 0 иначе
-		MT::task_id wait_signal();
+        // ожидание полной обработки текущей очереди задач или приостановки,
+        // возвращает id задачи, которая первая подала сигнал и 0 иначе
+        MT::task_id wait_signal();
 
-		// ожидание полной обработки текущей очереди задач, игнорируя любые
-		// сигналы о приостановке
-		void wait();
+        // ожидание полной обработки текущей очереди задач, игнорируя любые
+        // сигналы о приостановке
+        void wait();
 
-		// приостановка обработки
-		void stop();
+        // приостановка обработки
+        void stop();
 
-		// возобновление обработки
-		void start();
+        // возобновление обработки
+        void start();
 
-		// получение результата по id
-		template <typename TaskChild>
-		std::shared_ptr<TaskChild> get_result(MT::task_id id);
+        // получение результата по id
+        template <typename TaskChild>
+        std::shared_ptr<TaskChild> get_result(MT::task_id id);
 
-		// очистка завершенных задач
-		void clear_completed();
+        // очистка завершенных задач
+        void clear_completed();
 
-		// установка флага логирования
-		void set_logger_flag(bool flag);
+        // установка флага логирования
+        void set_logger_flag(bool flag);
 
-		~ThreadPool();
+        ~ThreadPool();
 
-	private:
-		// мьютексы, блокирующие очереди для потокобезопасного обращения
-		std::mutex task_queue_mutex;
-		std::mutex completed_tasks_mutex;
-		std::mutex signal_queue_mutex;
+    private:
+        // мьютексы, блокирующие очереди для потокобезопасного обращения
+        std::mutex task_queue_mutex;
+        std::mutex completed_tasks_mutex;
+        std::mutex signal_queue_mutex;
 
-		// мьютекс, блокирующий логер для последовательного вывода
-		std::mutex logger_mutex;
+        // мьютекс, блокирующий логер для последовательного вывода
+        std::mutex logger_mutex;
 
-		// мьютекс, блокирующий функции ожидающие результаты (методы wait*)
-		std::mutex wait_mutex;
+        // мьютекс, блокирующий функции ожидающие результаты (методы wait*)
+        std::mutex wait_mutex;
 
-		std::condition_variable tasks_access;
-		std::condition_variable wait_access;
+        std::condition_variable tasks_access;
+        std::condition_variable wait_access;
 
-		// набор доступных потоков
-		std::vector<MT::Thread*> threads;
+        // набор доступных потоков
+        std::vector<MT::Thread*> threads;
 
-		// очередь задач
-		std::queue<std::shared_ptr<Task>> task_queue;
-		MT::task_id last_task_id;
+        // очередь задач
+        std::queue<std::shared_ptr<Task>> task_queue;
+        MT::task_id last_task_id;
 
-		// массив выполненных задач в виде хэш-таблицы
-		std::unordered_map<MT::task_id, std::shared_ptr<Task>> completed_tasks;
-		unsigned long long completed_task_count;
+        // массив выполненных задач в виде хэш-таблицы
+        std::unordered_map<MT::task_id, std::shared_ptr<Task>> completed_tasks;
+        unsigned long long completed_task_count;
 
-		std::queue<task_id> signal_queue;
+        std::queue<task_id> signal_queue;
 
-		// флаг остановки работы пула
-		std::atomic<bool> stopped;
-		// флаг приостановки работы
-		std::atomic<bool> paused;
-		std::atomic<bool> ignore_signals;
-		// флаг, разрешающий логирования
-		std::atomic<bool> logger_flag;
+        // флаг остановки работы пула
+        std::atomic<bool> stopped;
+        // флаг приостановки работы
+        std::atomic<bool> paused;
+        std::atomic<bool> ignore_signals;
+        // флаг, разрешающий логирования
+        std::atomic<bool> logger_flag;
 
-		Timer timer;
+        Timer timer;
 
-		// основная функция, инициализирующая каждый поток
-		void run(MT::Thread* thread);
+        // основная функция, инициализирующая каждый поток
+        void run(MT::Thread* thread);
 
-		// приостановка обработки c выбросом сигнала
-		void receive_signal(MT::task_id id);
+        // приостановка обработки c выбросом сигнала
+        void receive_signal(MT::task_id id);
 
-		// разрешение запуска очередного потока
-		bool run_allowed() const;
+        // разрешение запуска очередного потока
+        bool run_allowed() const;
 
-		// проверка выполнения всех задач из очереди
-		bool is_comleted() const;
+        // проверка выполнения всех задач из очереди
+        bool is_comleted() const;
 
-		// проверка, занятости хотя бы одного потока
-		bool is_standby() const;
-	};
+        // проверка, занятости хотя бы одного потока
+        bool is_standby() const;
+    };
 }
 ```
 
@@ -364,21 +364,21 @@ namespace MT {
 
 Теперь перейдем к определению методов объявленных классов. С классом `Task` все предельно просто:
 
-```
+```C++
 MT::Task::Task(const std::string& _description) {
-	description = _description;
-	id = 0;
-	status = MT::Task::TaskStatus::awaiting;
-	thread_pool = nullptr;
+    description = _description;
+    id = 0;
+    status = MT::Task::TaskStatus::awaiting;
+    thread_pool = nullptr;
 }
 
 void MT::Task::send_signal() {
-	thread_pool->receive_signal(id);
+    thread_pool->receive_signal(id);
 }
 
 void MT::Task::one_thread_pre_method() {
-	one_thread_method();
-	status = MT::Task::TaskStatus::completed;
+    one_thread_method();
+    status = MT::Task::TaskStatus::completed;
 }
 ```
 
@@ -386,20 +386,20 @@ void MT::Task::one_thread_pre_method() {
 
 Теперь поговорим об основном классе `ThreadPool`.
 
-```
+```C++
 MT::ThreadPool::ThreadPool(int count_of_threads) {
-	stopped = false;
-	paused = true;
-	logger_flag = false;
-	last_task_id = 0;
-	completed_task_count = 0;
-	ignore_signals = true;
-	for (int i = 0; i < count_of_threads; i++) {
-		MT::Thread* th = new MT::Thread;
-		th->_thread = std::thread{ &ThreadPool::run, this, th };
-		th->is_working = false;
-		threads.push_back(th);
-	}
+    stopped = false;
+    paused = true;
+    logger_flag = false;
+    last_task_id = 0;
+    completed_task_count = 0;
+    ignore_signals = true;
+    for (int i = 0; i < count_of_threads; i++) {
+        MT::Thread* th = new MT::Thread;
+        th->_thread = std::thread{ &ThreadPool::run, this, th };
+        th->is_working = false;
+        threads.push_back(th);
+    }
 }
 ```
 
@@ -409,46 +409,46 @@ MT::ThreadPool::ThreadPool(int count_of_threads) {
 
 Каждый поток запускается с вызовом закрытого метода `ThreadPool::run`, передавая указатель на самого себя для контроля состояния (управление флагом `Thread::is_working`):
 
-```
+```C++
 bool MT::ThreadPool::run_allowed() const {
-	return (!task_queue.empty() && !paused);
+    return (!task_queue.empty() && !paused);
 }
 
 void MT::ThreadPool::run(MT::Thread* _thread) {
-	while (!stopped) {
-		std::unique_lock<std::mutex> lock(task_queue_mutex);
+    while (!stopped) {
+        std::unique_lock<std::mutex> lock(task_queue_mutex);
 
-		// текущий поток находится в режиме ожидания в случае,
-		// если нет заданий либо работа всего пула приостановлена
-		_thread->is_working = false;
-		tasks_access.wait(lock, [this]()->bool { return run_allowed() || stopped; });
-		_thread->is_working = true;
+        // текущий поток находится в режиме ожидания в случае,
+        // если нет заданий либо работа всего пула приостановлена
+        _thread->is_working = false;
+        tasks_access.wait(lock, [this]()->bool { return run_allowed() || stopped; });
+        _thread->is_working = true;
 
-		if (run_allowed()) {
-			// поток достает задачу из очереди
-			auto elem = std::move(task_queue.front());
-			task_queue.pop();
-			lock.unlock();
+        if (run_allowed()) {
+            // поток достает задачу из очереди
+            auto elem = std::move(task_queue.front());
+            task_queue.pop();
+            lock.unlock();
 
-			if (logger_flag) {
-				std::lock_guard<std::mutex> lg(logger_mutex);
-				std::cout << timer.make_checkpoint("Run task " + elem->description) << std::endl;
-			}
-			// решение задачи
-			elem->one_thread_pre_method();
-			if (logger_flag) {
-				std::lock_guard<std::mutex> lg(logger_mutex);
-				std::cout << timer.make_checkpoint("End task " + elem->description) << std::endl;
-			}
+            if (logger_flag) {
+                std::lock_guard<std::mutex> lg(logger_mutex);
+                std::cout << timer.make_checkpoint("Run task " + elem->description) << std::endl;
+            }
+            // решение задачи
+            elem->one_thread_pre_method();
+            if (logger_flag) {
+                std::lock_guard<std::mutex> lg(logger_mutex);
+                std::cout << timer.make_checkpoint("End task " + elem->description) << std::endl;
+            }
 
-			// сохранение результата
-			std::lock_guard<std::mutex> lg(completed_tasks_mutex);
-			completed_tasks[elem->id] = elem;
-			completed_task_count++;
-		}
-		// пробуждение потоков, которые находятся в ожидании пула (методы wait*)
-		wait_access.notify_all();
-	}
+            // сохранение результата
+            std::lock_guard<std::mutex> lg(completed_tasks_mutex);
+            completed_tasks[elem->id] = elem;
+            completed_task_count++;
+        }
+        // пробуждение потоков, которые находятся в ожидании пула (методы wait*)
+        wait_access.notify_all();
+    }
 }
 ```
 
@@ -456,25 +456,25 @@ void MT::ThreadPool::run(MT::Thread* _thread) {
 
 Как видно в реализации, решенная задача кладется в `ThreadPool::completed_tasks` в неизменном виде по ключу `Task::id`. Мною было решено не вводить излишних усложнений в виде дополнительных классов для сохранения результатов. Пользователь самостоятельно определит нужные ему ресурсы в дочернем классе задачи, которые будут изменены или заполнены при помощи переопределенного метода `Task::one_thread_method()`.
 
-```
+```C++
 void MT::ThreadPool::start() {
-	if (paused) {
-		paused = false;
-		// даем всем потокам разрешающий сигнал для доступа
-		// к очереди невыполненных задач
-		tasks_access.notify_all();
-	}
+    if (paused) {
+        paused = false;
+        // даем всем потокам разрешающий сигнал для доступа
+        // к очереди невыполненных задач
+        tasks_access.notify_all();
+    }
 }
 
 void MT::ThreadPool::stop() {
-	paused = true;
+    paused = true;
 }
 
 void MT::ThreadPool::receive_signal(MT::task_id id) {
-	std::lock_guard<std::mutex> lock(signal_queue_mutex);
-	signal_queue.emplace(id);
-	if (!ignore_signals)
-		stop();
+    std::lock_guard<std::mutex> lock(signal_queue_mutex);
+    signal_queue.emplace(id);
+    if (!ignore_signals)
+        stop();
 }
 ```
 
@@ -482,7 +482,7 @@ void MT::ThreadPool::receive_signal(MT::task_id id) {
 
 Далее я продемонстрирую нехитрую реализацию метода для добавления новых задач в очередь на обработку:
 
-```
+```C++
 template <typename TaskChild>
 MT::task_id add_task(const TaskChild& task) {
     std::lock_guard<std::mutex> lock(task_queue_mutex);
@@ -501,7 +501,7 @@ MT::task_id add_task(const TaskChild& task) {
 
 Получить результаты можно по идентификатору задачи только в том случае, если она была решена и направлена в `ThreadPool::completed_tasks`:
 
-```
+```C++
 template <typename TaskChild>
 std::shared_ptr<TaskChild> get_result(MT::task_id id) {
     auto elem = completed_tasks.find(id);
@@ -516,58 +516,58 @@ std::shared_ptr<TaskChild> get_result(MT::task_id id) {
 
 Наконец, переходим к основным методам, вызываемым ожидающими потоками:
 
-```
+```C++
 bool MT::ThreadPool::is_comleted() const {
-	return completed_task_count == last_task_id;
+    return completed_task_count == last_task_id;
 }
 
 bool MT::ThreadPool::is_standby() const {
-	if (!paused)
-		return false;
-	for (const auto& thread : threads)
-		if (thread->is_working)
-			return false;
-	return true;
+    if (!paused)
+        return false;
+    for (const auto& thread : threads)
+        if (thread->is_working)
+            return false;
+    return true;
 }
 
 void MT::ThreadPool::wait() {
-	std::lock_guard<std::mutex> lock_wait(wait_mutex);
+    std::lock_guard<std::mutex> lock_wait(wait_mutex);
 
-	start();
+    start();
 
-	std::unique_lock<std::mutex> lock(task_queue_mutex);
-	wait_access.wait(lock, [this]()->bool { return is_comleted(); });
+    std::unique_lock<std::mutex> lock(task_queue_mutex);
+    wait_access.wait(lock, [this]()->bool { return is_comleted(); });
 
-	stop();
+    stop();
 }
 
 MT::task_id MT::ThreadPool::wait_signal() {
-	std::lock_guard<std::mutex> lock_wait(wait_mutex);
+    std::lock_guard<std::mutex> lock_wait(wait_mutex);
 
-	ignore_signals = false;
+    ignore_signals = false;
 
-	signal_queue_mutex.lock();
-	if (signal_queue.empty())
-		start();
-	else
-		stop();
-	signal_queue_mutex.unlock();
+    signal_queue_mutex.lock();
+    if (signal_queue.empty())
+        start();
+    else
+        stop();
+    signal_queue_mutex.unlock();
 
-	std::unique_lock<std::mutex> lock(task_queue_mutex);
-	wait_access.wait(lock, [this]()->bool { return is_comleted() || is_standby(); });
+    std::unique_lock<std::mutex> lock(task_queue_mutex);
+    wait_access.wait(lock, [this]()->bool { return is_comleted() || is_standby(); });
 
-	ignore_signals = true;
+    ignore_signals = true;
 
-	// на данный момент все задачи по id из
-	// очереди signal_queue считаются выполненными
-	std::lock_guard<std::mutex> lock_signals(signal_queue_mutex);
-	if (signal_queue.empty())
-		return 0;
-	else {
-		MT::task_id signal = std::move(signal_queue.front());
-		signal_queue.pop();
-		return signal;
-	}
+    // на данный момент все задачи по id из
+    // очереди signal_queue считаются выполненными
+    std::lock_guard<std::mutex> lock_signals(signal_queue_mutex);
+    if (signal_queue.empty())
+        return 0;
+    else {
+        MT::task_id signal = std::move(signal_queue.front());
+        signal_queue.pop();
+        return signal;
+    }
 }
 ```
 
@@ -575,25 +575,25 @@ MT::task_id MT::ThreadPool::wait_signal() {
 
 Остались еще пару вспомогательных методов и деструктор:
 
-```
+```C++
 void MT::ThreadPool::clear_completed() {
-	std::scoped_lock lock(completed_tasks_mutex, signal_queue_mutex);
-	completed_tasks.clear();
-	while (!signal_queue.empty())
-		signal_queue.pop();
+    std::scoped_lock lock(completed_tasks_mutex, signal_queue_mutex);
+    completed_tasks.clear();
+    while (!signal_queue.empty())
+        signal_queue.pop();
 }
 
 void MT::ThreadPool::set_logger_flag(bool flag) {
-	logger_flag = flag;
+    logger_flag = flag;
 }
 
 MT::ThreadPool::~ThreadPool() {
-	stopped = true;
-	tasks_access.notify_all();
-	for (auto& thread : threads) {
-		thread->_thread.join();
-		delete thread;
-	}
+    stopped = true;
+    tasks_access.notify_all();
+    for (auto& thread : threads) {
+        thread->_thread.join();
+        delete thread;
+    }
 }
 ```
 
@@ -603,44 +603,44 @@ MT::ThreadPool::~ThreadPool() {
 
 А вот простенький пример использования моего пула в случае 3-х потоков. Для демонстрации задачи будут сигнализировать о "редком успехе" в случае, если на их решение будет затрачено много времени:
 
-```
+```C++
 #include "thread_pool.h"
 
 struct TestTask : public MT::Task {
-	int duration;
-	TestTask(const std::string& id, int _duration) : Task(id) {
-		duration = _duration + ((rand() % 20));
-		description += "_" + std::to_string(duration);
-	};
-	void one_thread_method() override {
-		if (duration >= 10) {
-			send_signal();
-			return;
-		}
-		else
-			std::this_thread::sleep_for(std::chrono::seconds(duration));
-	}
+    int duration;
+    TestTask(const std::string& id, int _duration) : Task(id) {
+        duration = _duration + ((rand() % 20));
+        description += "_" + std::to_string(duration);
+    };
+    void one_thread_method() override {
+        if (duration >= 10) {
+            send_signal();
+            return;
+        }
+        else
+            std::this_thread::sleep_for(std::chrono::seconds(duration));
+    }
 };
 
 int main() {
 
-	MT::ThreadPool thread_pool(3);
-	thread_pool.set_logger_flag(true);
-	// снимаем пул с паузы, позволяя потокам браться за задачи налету
-	thread_pool.start();
-	for (int i = 0; i < 20; i++) {
-		thread_pool.add_task(TestTask("TestTask_" + std::to_string(i + 1), 1));
-	}
-	// дождемся трех "редких успехов"
-	for (int i = 0; i < 3; i++) {
-		MT::task_id signal = thread_pool.wait_signal();
-		if (signal != 0) {
-			auto result = thread_pool.get_result<TestTask>(signal);
-			std::cout << "id: " << signal << ", duration: " << result->duration << std::endl;
-		}
-	}
+    MT::ThreadPool thread_pool(3);
+    thread_pool.set_logger_flag(true);
+    // снимаем пул с паузы, позволяя потокам браться за задачи налету
+    thread_pool.start();
+    for (int i = 0; i < 20; i++) {
+        thread_pool.add_task(TestTask("TestTask_" + std::to_string(i + 1), 1));
+    }
+    // дождемся трех "редких успехов"
+    for (int i = 0; i < 3; i++) {
+        MT::task_id signal = thread_pool.wait_signal();
+        if (signal != 0) {
+            auto result = thread_pool.get_result<TestTask>(signal);
+            std::cout << "id: " << signal << ", duration: " << result->duration << std::endl;
+        }
+    }
 
-	return 0;
+    return 0;
 }
 ```
 <!--
